@@ -13,7 +13,13 @@ class Duitku_Settings {
     }
 
     private function __construct() {
-        $this->options = get_option('duitku_settings', $this->get_defaults());
+        $defaults = $this->get_defaults();
+        $this->options = get_option('duitku_settings');
+        
+        if (!is_array($this->options) || !isset($this->options['duitku_settings'])) {
+            $this->options = $defaults;
+            update_option('duitku_settings', $this->options);
+        }
         
         // Add WooCommerce settings tab
         add_filter('woocommerce_settings_tabs_array', array($this, 'add_settings_tab'), 50);
@@ -63,7 +69,7 @@ class Duitku_Settings {
                 'title' => __('Merchant Code', 'duitku'),
                 'type' => 'text',
                 'desc' => __('Enter your Duitku Merchant Code', 'duitku'),
-                'id'   => 'duitku_settings[merchant_code]',
+                'id'   => 'duitku_settings[duitku_settings][merchant_code]',
                 'default' => '',
                 'desc_tip' => true
             ),
@@ -71,7 +77,7 @@ class Duitku_Settings {
                 'title' => __('API Key', 'duitku'),
                 'type' => 'password',
                 'desc' => __('Enter your Duitku API Key', 'duitku'),
-                'id'   => 'duitku_settings[api_key]',
+                'id'   => 'duitku_settings[duitku_settings][api_key]',
                 'default' => '',
                 'desc_tip' => true
             ),
@@ -79,7 +85,7 @@ class Duitku_Settings {
                 'title' => __('Environment', 'duitku'),
                 'type' => 'select',
                 'desc' => __('Select environment mode', 'duitku'),
-                'id'   => 'duitku_settings[environment]',
+                'id'   => 'duitku_settings[duitku_settings][environment]',
                 'default' => 'development',
                 'options' => array(
                     'development' => __('Development', 'duitku'),
@@ -91,7 +97,7 @@ class Duitku_Settings {
                 'title' => __('Global Expiry Period', 'duitku'),
                 'type' => 'number',
                 'desc' => __('Enter expiry period in minutes', 'duitku'),
-                'id'   => 'duitku_settings[expiry_period]',
+                'id'   => 'duitku_settings[duitku_settings][expiry_period]',
                 'default' => '60',
                 'desc_tip' => true,
                 'custom_attributes' => array(
@@ -103,7 +109,7 @@ class Duitku_Settings {
                 'title' => __('Enable Logging', 'duitku'),
                 'type' => 'checkbox',
                 'desc' => __('Enable logging for debugging purposes', 'duitku'),
-                'id'   => 'duitku_settings[enable_logging]',
+                'id'   => 'duitku_settings[duitku_settings][enable_logging]',
                 'default' => 'yes'
             ),
             array(
@@ -115,11 +121,13 @@ class Duitku_Settings {
 
     private function get_defaults() {
         return array(
-            'merchant_code' => '',
-            'api_key' => '',
-            'environment' => 'development',
-            'expiry_period' => '60',
-            'enable_logging' => 'yes'
+            'duitku_settings' => array(
+                'merchant_code' => '',
+                'api_key' => '',
+                'environment' => 'development',
+                'expiry_period' => '60',
+                'enable_logging' => 'yes'
+            )
         );
     }
 }
