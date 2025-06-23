@@ -95,11 +95,11 @@ class Duitku_CIMB extends Duitku_Payment_Gateway {
             }
 
             // Get merchant settings from parent
-            $merchantCode = $this->get_option('merchant_code');
-            $apiKey = $this->get_option('api_key');
-            $environment = $this->get_option('environment');
+            $merchantCode = $this->settings['merchant_code'];
+            $apiKey = $this->settings['api_key'];
+            $environment = $this->settings['environment'];
             
-            if (!$merchantCode || !$apiKey) {
+            if (empty($merchantCode) || empty($apiKey)) {
                 throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
             }
 
@@ -109,12 +109,8 @@ class Duitku_CIMB extends Duitku_Payment_Gateway {
             // Generate signature
             $signature = md5($merchantCode . $merchantOrderId . $paymentAmount . $apiKey);
             
-            // Get expiry period from global settings if available
-            $expiryPeriod = $this->get_option('expiry_period');
-            if (empty($expiryPeriod)) {
-                // Default to 1440 minutes (24 hours) if not set
-                $expiryPeriod = 1440;
-            }
+            // Get expiry period from settings
+            $expiryPeriod = isset($this->settings['expiry_period']) ? $this->settings['expiry_period'] : '1440';
             
             // Prepare API request data
             $data = array(
