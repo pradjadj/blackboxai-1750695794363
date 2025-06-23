@@ -18,8 +18,6 @@ class Duitku_Permata extends Duitku_Payment_Gateway {
         $this->enabled = $this->get_option('enabled', 'yes');
         $this->title = $this->get_option('title', 'Permata Virtual Account');
         $this->description = $this->get_option('description');
-        $this->instructions = $this->get_option('instructions');
-        $this->expiry_time = $this->get_option('expiry_time', '24');
         $this->fee_type = $this->get_option('fee_type', 'nominal');
         $this->fee_value = $this->get_option('fee_value', '0');
 
@@ -49,33 +47,6 @@ class Duitku_Permata extends Duitku_Payment_Gateway {
                 'description' => __('Payment method description that the customer will see on your checkout.', 'duitku'),
                 'default' => __('Pay using Permata Virtual Account. The payment will expire after the specified time limit.', 'duitku'),
                 'desc_tip' => true,
-            ),
-            'instructions' => array(
-                'title' => __('Payment Instructions', 'duitku'),
-                'type' => 'textarea',
-                'description' => __('Instructions that will be added to the thank you page and emails.', 'duitku'),
-                'default' => __(
-                    "1. Save your Permata Virtual Account number\n" .
-                    "2. Login to your Permata Mobile Banking or Internet Banking\n" .
-                    "3. Select Virtual Account payment\n" .
-                    "4. Enter your Virtual Account number\n" .
-                    "5. Confirm your payment\n" .
-                    "6. Your payment is complete",
-                    'duitku'
-                ),
-                'desc_tip' => true,
-            ),
-            'expiry_time' => array(
-                'title' => __('Expiry Time', 'duitku'),
-                'type' => 'number',
-                'description' => __('Time in hours before the payment expires. Default is 24 hours.', 'duitku'),
-                'default' => '24',
-                'desc_tip' => true,
-                'custom_attributes' => array(
-                    'min' => '1',
-                    'max' => '48',
-                    'step' => '1'
-                )
             ),
             'fee_type' => array(
                 'title' => __('Fee Type', 'duitku'),
@@ -117,14 +88,27 @@ class Duitku_Permata extends Duitku_Payment_Gateway {
                 $order->calculate_totals();
             }
 
-            // Prepare transaction data
-            $merchantCode = $this->settings['merchant_code'];
+            // Get merchant settings from parent
+            $merchantCode = $this->get_option('merchant_code');
+            $apiKey = $this->get_option('api_key');
+            $environment = $this->get_option('environment');
+            
+            if (!$merchantCode || !$apiKey) {
+                throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
+            }
+
             $merchantOrderId = 'DPAY-' . $order_id;
             $paymentAmount = $order->get_total();
-            $apiKey = $this->settings['api_key'];
             
             // Generate signature
             $signature = md5($merchantCode . $merchantOrderId . $paymentAmount . $apiKey);
+            
+            // Get expiry period from global settings if available
+            $expiryPeriod = $this->get_option('expiry_period');
+            if (empty($expiryPeriod)) {
+                // Default to 1440 minutes (24 hours) if not set
+                $expiryPeriod = 1440;
+            }
             
             // Prepare API request data
             $data = array(
@@ -139,11 +123,11 @@ class Duitku_Permata extends Duitku_Payment_Gateway {
                 'callbackUrl' => add_query_arg('duitku_callback', '1', site_url('/')),
                 'signature' => $signature,
                 'paymentMethod' => $this->payment_code,
-                'expiryPeriod' => intval($this->expiry_time) * 60 // Convert hours to minutes
+                'expiryPeriod' => intval($expiryPeriod)
             );
 
             // Get API endpoint based on environment
-            $endpoint = $this->settings['environment'] === 'production' 
+            $endpoint = $environment === 'production' 
                 ? 'https://passport.duitku.com/webapi/api/merchant/v2/inquiry'
                 : 'https://sandbox.duitku.com/webapi/api/merchant/v2/inquiry';
 
@@ -164,11 +148,15 @@ class Duitku_Permata extends Duitku_Payment_Gateway {
                 throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
             }
 
+            if (!isset($body['reference']) || !isset($body['vaNumber'])) {
+                throw new Exception(__('Invalid response from Duitku: Missing required fields', 'duitku'));
+            }
+
             // Store payment details in order meta
             $this->update_order_meta($order, '_duitku_reference', $body['reference']);
             $this->update_order_meta($order, '_duitku_va_number', $body['vaNumber']);
             $this->update_order_meta($order, '_duitku_payment_code', $this->payment_code);
-            $this->update_order_meta($order, '_duitku_expiry', time() + (intval($this->expiry_time) * 3600));
+            $this->update_order_meta($order, '_duitku_expiry', time() + (intval($expiryPeriod) * 60));
             
             // Update order status
             $order->update_status('pending', __('Awaiting Permata Virtual Account payment', 'duitku'));
