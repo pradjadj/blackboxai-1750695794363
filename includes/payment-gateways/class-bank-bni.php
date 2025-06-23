@@ -17,10 +17,11 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
         // Define user set variables
         $this->enabled = $this->get_option('enabled', 'yes');
         $this->title = $this->get_option('title', 'BNI Virtual Account');
-        $this->description = $this->get_option('description', sprintf(
-            'Pembayaran menggunakan Virtual Account BNI. Expired dalam %d menit.',
-            $this->settings['expiry_period'] ?? 60
-        ));
+        $this->description = $this->get_option('description');
+        $this->instructions = $this->get_option('instructions');
+        $this->expiry_time = $this->get_option('expiry_time', '24');
+        $this->fee_type = $this->get_option('fee_type', 'nominal');
+        $this->fee_value = $this->get_option('fee_value', '0');
 
         // Actions
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
@@ -38,21 +39,18 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
             'title' => array(
                 'title' => __('Title', 'duitku'),
                 'type' => 'text',
-                'description' => __('This controls the payment method title which the user sees during checkout.', 'duitku'),
+                'description' => __('Payment method title that the customer will see on your checkout.', 'duitku'),
                 'default' => __('BNI Virtual Account', 'duitku'),
                 'desc_tip' => true,
             ),
             'description' => array(
                 'title' => __('Description', 'duitku'),
                 'type' => 'textarea',
-                'description' => __('This controls the payment method description which the user sees during checkout.', 'duitku'),
-                'default' => sprintf(
-                    __('Pay using BNI Virtual Account. The payment will expire in %d minutes after order is placed.', 'duitku'),
-                    $this->settings['expiry_period'] ?? 60
-                ),
+                'description' => __('Payment method description that the customer will see on your checkout.', 'duitku'),
+                'default' => __('Pay using BNI Virtual Account. The payment will expire after the specified time limit.', 'duitku'),
                 'desc_tip' => true,
             ),
-            'payment_instructions' => array(
+            'instructions' => array(
                 'title' => __('Payment Instructions', 'duitku'),
                 'type' => 'textarea',
                 'description' => __('Instructions that will be added to the thank you page and emails.', 'duitku'),
@@ -66,15 +64,59 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
                     'duitku'
                 ),
                 'desc_tip' => true,
+            ),
+            'expiry_time' => array(
+                'title' => __('Expiry Time', 'duitku'),
+                'type' => 'number',
+                'description' => __('Time in hours before the payment expires. Default is 24 hours.', 'duitku'),
+                'default' => '24',
+                'desc_tip' => true,
+                'custom_attributes' => array(
+                    'min' => '1',
+                    'max' => '48',
+                    'step' => '1'
+                )
+            ),
+            'fee_type' => array(
+                'title' => __('Fee Type', 'duitku'),
+                'type' => 'select',
+                'description' => __('Choose how the payment fee will be calculated.', 'duitku'),
+                'default' => 'nominal',
+                'options' => array(
+                    'nominal' => __('Nominal (Fixed Amount)', 'duitku'),
+                    'percent' => __('Percentage (%)', 'duitku')
+                ),
+                'desc_tip' => true,
+            ),
+            'fee_value' => array(
+                'title' => __('Fee Value', 'duitku'),
+                'type' => 'text',
+                'description' => __('Enter the fee value. For percentage, enter number without % symbol (e.g., 2.5). For nominal, enter the amount.', 'duitku'),
+                'default' => '0',
+                'desc_tip' => true,
             )
         );
     }
 
-    public function process_payment($order_id) {
-        global $woocommerce;
-        $order = wc_get_order($order_id);
+    public function calculate_fee($order_total) {
+        if ($this->fee_type === 'percent') {
+            return ($order_total * floatval($this->fee_value)) / 100;
+        }
+        return floatval($this->fee_value);
+    }
 
+    public function process_payment($order_id) {
+        $order = wc_get_order($order_id);
+        
         try {
+            // Add payment fee if set
+            $fee = $this->calculate_fee($order->get_total());
+            if ($fee > 0) {
+                $fee_name = sprintf(__('Payment Fee (%s)', 'duitku'), $this->title);
+                $order->add_fee($fee_name, $fee, true);
+                $order->calculate_totals();
+            }
+
             // Prepare transaction data
             $merchantCode = $this->settings['merchant_code'];
             $merchantOrderId = 'DPAY-' . $order_id;
@@ -92,12 +134,12 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
                 'productDetails' => $this->get_product_details($order),
                 'email' => $order->get_billing_email(),
                 'phoneNumber' => $order->get_billing_phone(),
-                'customerVaName' => get_bloginfo('name'),
+                'customerVaName' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
                 'returnUrl' => $this->get_return_url($order),
                 'callbackUrl' => add_query_arg('duitku_callback', '1', site_url('/')),
                 'signature' => $signature,
                 'paymentMethod' => $this->payment_code,
-                'expiryPeriod' => $this->settings['expiry_period'] ?? 60
+                'expiryPeriod' => intval($this->expiry_time) * 60 // Convert hours to minutes
             );
 
             // Get API endpoint based on environment
@@ -122,17 +164,17 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
                 throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
             }
 
-            // Store payment details in order meta using HPOS compatible methods
+            // Store payment details in order meta
             $this->update_order_meta($order, '_duitku_reference', $body['reference']);
             $this->update_order_meta($order, '_duitku_va_number', $body['vaNumber']);
             $this->update_order_meta($order, '_duitku_payment_code', $this->payment_code);
-            $this->update_order_meta($order, '_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
+            $this->update_order_meta($order, '_duitku_expiry', time() + (intval($this->expiry_time) * 3600));
             
             // Update order status
             $order->update_status('pending', __('Awaiting BNI Virtual Account payment', 'duitku'));
 
             // Empty cart
-            $woocommerce->cart->empty_cart();
+            WC()->cart->empty_cart();
 
             // Return success
             return array(
@@ -189,12 +231,11 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
         }
         
         // Payment Instructions
-        $instructions = $this->get_option('payment_instructions');
-        if ($instructions) {
+        if ($this->instructions) {
             echo '<div class="duitku-instructions">';
             echo '<h2>' . esc_html__('Payment Instructions', 'duitku') . '</h2>';
             echo '<div class="instruction-steps">';
-            echo wp_kses_post(nl2br($instructions));
+            echo wp_kses_post(nl2br($this->instructions));
             echo '</div>';
             echo '</div>';
         }
