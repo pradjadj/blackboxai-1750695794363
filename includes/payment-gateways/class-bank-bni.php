@@ -95,9 +95,9 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
             }
 
             // Get merchant settings from parent
-            $merchantCode = $this->settings['merchant_code'];
-            $apiKey = $this->settings['api_key'];
-            $environment = $this->settings['environment'];
+            $merchantCode = isset($this->settings['merchant_code']) ? $this->settings['merchant_code'] : '';
+            $apiKey = isset($this->settings['api_key']) ? $this->settings['api_key'] : '';
+            $environment = isset($this->settings['environment']) ? $this->settings['environment'] : 'development';
             
             if (empty($merchantCode) || empty($apiKey)) {
                 throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
