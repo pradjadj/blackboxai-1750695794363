@@ -13,6 +13,27 @@ class Duitku_Callback_Handler {
         add_action('woocommerce_order_status_pending_to_cancelled', array($this, 'handle_expired_orders'));
     }
 
+    protected function update_order_meta($order, $meta_key, $meta_value) {
+        if (method_exists($order, 'update_meta_data')) {
+            // WooCommerce 7.0+ and HPOS compatible
+            $order->update_meta_data($meta_key, $meta_value);
+            $order->save();
+        } else {
+            // Fallback for older WooCommerce versions
+            update_post_meta($order->get_id(), $meta_key, $meta_value);
+        }
+    }
+
+    protected function get_order_meta($order, $meta_key, $single = true) {
+        if (method_exists($order, 'get_meta')) {
+            // WooCommerce 7.0+ and HPOS compatible
+            return $order->get_meta($meta_key, $single);
+        } else {
+            // Fallback for older WooCommerce versions
+            return get_post_meta($order->get_id(), $meta_key, $single);
+        }
+    }
+
     public function handle_callback() {
         if (!isset($_GET['duitku_callback'])) {
             return;
@@ -92,8 +113,8 @@ class Duitku_Callback_Handler {
     }
 
     protected function process_callback($order, $data) {
-        // Store callback data in order meta
-        $order->update_meta_data('_duitku_callback_data', $data);
+        // Store callback data in order meta using HPOS compatible method
+        $this->update_order_meta($order, '_duitku_callback_data', $data);
         
         // Process based on result code
         switch ($data['resultCode']) {
@@ -108,9 +129,9 @@ class Duitku_Callback_Handler {
                         )
                     );
 
-                    // Store settlement date if provided
+                    // Store settlement date if provided using HPOS compatible method
                     if (isset($data['settlementDate'])) {
-                        $order->update_meta_data('_duitku_settlement_date', $data['settlementDate']);
+                        $this->update_order_meta($order, '_duitku_settlement_date', $data['settlementDate']);
                     }
                 }
                 break;
@@ -146,16 +167,16 @@ class Duitku_Callback_Handler {
             return;
         }
 
-        // Check expiry
-        $expiry = $order->get_meta('_duitku_expiry');
+        // Check expiry using HPOS compatible method
+        $expiry = $this->get_order_meta($order, '_duitku_expiry');
         if ($expiry && time() > $expiry) {
             $order->update_status(
                 'cancelled',
                 __('Order cancelled due to payment expiration.', 'duitku')
             );
+            $order->save(); // Ensure changes are saved in HPOS
         }
     }
 }
 
-// Initialize the callback handler
-new Duitku_Callback_Handler();
+// Initialization is handled in the main plugin file
