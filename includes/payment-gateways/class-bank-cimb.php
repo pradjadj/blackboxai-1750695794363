@@ -97,7 +97,7 @@ class Duitku_CIMB extends Duitku_Payment_Gateway {
                 throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
             }
 
-            $merchantOrderId = 'DPAY-' . $order_id;
+            $merchantOrderId = 'TRX-' . $order_id;
             $paymentAmount = $order->get_total();
             
             // Generate signature
