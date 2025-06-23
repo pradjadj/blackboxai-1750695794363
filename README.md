@@ -12,3 +12,9 @@ Supported Payment:
 - QRIS NobuBank
 
 This plugin supported for HPOS with WooCommerce 9.8, WordPress 6.8 and PHP 8.0+
+
+===
+
+RELEASED VERSION:
+
+1.0 = initial released
