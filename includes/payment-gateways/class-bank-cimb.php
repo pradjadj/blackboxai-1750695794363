@@ -8,7 +8,7 @@ class Duitku_CIMB extends Duitku_Payment_Gateway {
         $this->id = 'duitku_cimb';
         $this->method_title = 'Duitku - CIMB Virtual Account';
         $this->method_description = 'Pembayaran melalui Virtual Account CIMB';
-        $this->payment_code = 'I5'; // CIMB payment code
+        $this->payment_code = 'B1'; // CIMB payment code
 
         // Load the settings
         $this->init_form_fields();
