@@ -13,16 +13,55 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         $this->supports = array('products');
 
         // Load settings
-        $this->settings = get_option('duitku_settings');
-        $this->enabled = 'yes';
+        $this->init_form_fields();
+        $this->init_settings();
+        
+        $this->enabled = $this->get_option('enabled', 'yes');
+        $this->title = $this->get_option('title', 'Duitku Payment');
+        $this->description = $this->get_option('description', 'Pay with Duitku');
+        
+        // Get settings from Duitku_Settings
+        $this->settings = get_option('duitku_settings', array(
+            'merchant_code' => '',
+            'api_key' => '',
+            'environment' => 'development',
+            'expiry_period' => '60',
+            'enable_logging' => 'yes'
+        ));
         
         // Initialize logger
         $this->logger = new Duitku_Logger();
 
         // Actions
+        add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
         add_action('woocommerce_api_duitku_callback', array($this, 'handle_callback'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
         add_action('wp_enqueue_scripts', array($this, 'payment_scripts'));
+    }
+
+    public function init_form_fields() {
+        $this->form_fields = array(
+            'enabled' => array(
+                'title' => __('Enable/Disable', 'duitku'),
+                'type' => 'checkbox',
+                'label' => __('Enable Duitku Payment', 'duitku'),
+                'default' => 'yes'
+            ),
+            'title' => array(
+                'title' => __('Title', 'duitku'),
+                'type' => 'text',
+                'description' => __('Payment method title that the customer will see on your checkout.', 'duitku'),
+                'default' => __('Duitku Payment', 'duitku'),
+                'desc_tip' => true,
+            ),
+            'description' => array(
+                'title' => __('Description', 'duitku'),
+                'type' => 'textarea',
+                'description' => __('Payment method description that the customer will see on your checkout.', 'duitku'),
+                'default' => __('Pay with Duitku', 'duitku'),
+                'desc_tip' => true,
+            )
+        );
     }
 
     public function payment_scripts() {
