@@ -18,6 +18,13 @@ if (!in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get
     return;
 }
 
+// Declare HPOS compatibility
+add_action('before_woocommerce_init', function() {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+    }
+});
+
 // Check PHP version
 if (version_compare(PHP_VERSION, '8.0.0', '<')) {
     add_action('admin_notices', function() {
@@ -56,16 +63,19 @@ function duitku_init() {
     }
     
     // Include core files
+    require_once DUITKU_PLUGIN_DIR . 'includes/duitku-logger.php'; // Load logger first
     require_once DUITKU_PLUGIN_DIR . 'includes/class-duitku-settings.php';
     require_once DUITKU_PLUGIN_DIR . 'includes/class-duitku-payment-gateway.php';
     require_once DUITKU_PLUGIN_DIR . 'includes/class-callback-handler.php';
     require_once DUITKU_PLUGIN_DIR . 'includes/class-ajax-refresh.php';
-    require_once DUITKU_PLUGIN_DIR . 'includes/duitku-logger.php';
     
     // Load payment gateway classes
     foreach (glob(DUITKU_PLUGIN_DIR . 'includes/payment-gateways/class-*.php') as $filename) {
         require_once $filename;
     }
+
+    // Initialize callback handler
+    new Duitku_Callback_Handler();
 }
 add_action('plugins_loaded', 'duitku_init');
 
