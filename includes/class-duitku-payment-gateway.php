@@ -2,7 +2,7 @@
 defined('ABSPATH') || exit;
 
 class Duitku_Payment_Gateway extends WC_Payment_Gateway {
-    protected $settings;
+    public $settings;
     protected $logger;
 
     public function __construct() {
@@ -95,19 +95,18 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
                 throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
             }
 
-            // Store payment details in order meta
-            $order->update_meta_data('_duitku_reference', $body['reference']);
+            // Store payment details in order meta using HPOS compatible methods
+            $this->update_order_meta($order, '_duitku_reference', $body['reference']);
             if (isset($body['vaNumber'])) {
-                $order->update_meta_data('_duitku_va_number', $body['vaNumber']);
+                $this->update_order_meta($order, '_duitku_va_number', $body['vaNumber']);
             }
             if (isset($body['qrString'])) {
-                $order->update_meta_data('_duitku_qr_string', $body['qrString']);
+                $this->update_order_meta($order, '_duitku_qr_string', $body['qrString']);
             }
-            $order->update_meta_data('_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
+            $this->update_order_meta($order, '_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
             
             // Update order status
             $order->update_status('pending', __('Awaiting payment via Duitku', 'duitku'));
-            $order->save();
 
             // Return success
             return array(
@@ -130,11 +129,32 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         return implode(', ', $items);
     }
 
+    protected function update_order_meta($order, $meta_key, $meta_value) {
+        if (method_exists($order, 'update_meta_data')) {
+            // WooCommerce 7.0+ and HPOS compatible
+            $order->update_meta_data($meta_key, $meta_value);
+            $order->save();
+        } else {
+            // Fallback for older WooCommerce versions
+            update_post_meta($order->get_id(), $meta_key, $meta_value);
+        }
+    }
+
+    protected function get_order_meta($order, $meta_key, $single = true) {
+        if (method_exists($order, 'get_meta')) {
+            // WooCommerce 7.0+ and HPOS compatible
+            return $order->get_meta($meta_key, $single);
+        } else {
+            // Fallback for older WooCommerce versions
+            return get_post_meta($order->get_id(), $meta_key, $single);
+        }
+    }
+
     public function receipt_page($order_id) {
         $order = wc_get_order($order_id);
-        $va_number = $order->get_meta('_duitku_va_number');
-        $qr_string = $order->get_meta('_duitku_qr_string');
-        $expiry = $order->get_meta('_duitku_expiry');
+        $va_number = $this->get_order_meta($order, '_duitku_va_number');
+        $qr_string = $this->get_order_meta($order, '_duitku_qr_string');
+        $expiry = $this->get_order_meta($order, '_duitku_expiry');
         
         echo '<div class="duitku-payment-details">';
         
