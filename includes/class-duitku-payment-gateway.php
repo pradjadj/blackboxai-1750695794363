@@ -90,7 +90,7 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         try {
             // Prepare transaction data
             $merchantCode = $this->settings['merchant_code'];
-            $merchantOrderId = 'DPAY-' . $order_id;
+            $merchantOrderId = 'TRX-' . $order_id;
             $paymentAmount = $order->get_total();
             $apiKey = $this->settings['api_key'];
             
