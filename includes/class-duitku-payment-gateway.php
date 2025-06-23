@@ -21,10 +21,8 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         $this->description = $this->get_option('description', 'Pay with Duitku');
         
         // Get settings from Duitku_Settings
-        $settings = get_option('duitku_settings');
-        if (is_array($settings) && isset($settings['duitku_settings'])) {
-            $this->settings = $settings['duitku_settings'];
-        } else {
+        $this->settings = get_option('duitku_settings');
+        if (!is_array($this->settings)) {
             $this->settings = array(
                 'merchant_code' => '',
                 'api_key' => '',
