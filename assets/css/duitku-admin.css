@@ -1,0 +1,202 @@
+/* Duitku Admin Settings Styles */
+
+.duitku-admin-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    margin: 1em 0;
+    padding: 1.5em;
+}
+
+.duitku-admin-card h2 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+    font-size: 1.3em;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.duitku-admin-card code {
+    display: block;
+    padding: 12px;
+    background: #f5f5f5;
+    border: 1px solid #e2e4e7;
+    border-radius: 4px;
+    font-size: 13px;
+    margin: 1em 0;
+    word-break: break-all;
+}
+
+/* Form Fields */
+.form-table td fieldset label {
+    margin: .25em 0 .5em !important;
+    display: block;
+}
+
+.form-table td fieldset label.description {
+    color: #666;
+    font-style: italic;
+    margin-top: 4px !important;
+}
+
+/* Input Fields */
+.form-table input[type="text"],
+.form-table input[type="password"],
+.form-table input[type="number"],
+.form-table select {
+    width: 400px;
+    max-width: 100%;
+    padding: 8px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.form-table input[type="text"]:focus,
+.form-table input[type="password"]:focus,
+.form-table input[type="number"]:focus,
+.form-table select:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: 2px solid transparent;
+}
+
+/* Checkbox styling */
+.form-table input[type="checkbox"] {
+    margin-right: 8px;
+    border: 1px solid #8c8f94;
+}
+
+.form-table input[type="checkbox"]:checked {
+    background: #2271b1;
+    border-color: #2271b1;
+}
+
+/* Settings Sections */
+.duitku-settings-section {
+    margin-bottom: 2em;
+    padding-bottom: 1em;
+    border-bottom: 1px solid #eee;
+}
+
+.duitku-settings-section:last-child {
+    border-bottom: none;
+}
+
+/* Status Messages */
+.duitku-status {
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.duitku-status.success {
+    background-color: #f0f6fc;
+    border-left: 4px solid #2271b1;
+    color: #1d2327;
+}
+
+.duitku-status.error {
+    background-color: #fcf0f1;
+    border-left: 4px solid #d63638;
+    color: #1d2327;
+}
+
+.duitku-status.warning {
+    background-color: #fcf9e8;
+    border-left: 4px solid #dba617;
+    color: #1d2327;
+}
+
+/* Help Text */
+.duitku-help-text {
+    color: #646970;
+    font-size: 13px;
+    font-style: italic;
+    margin: 4px 0 0;
+}
+
+/* Submit Button */
+.duitku-submit {
+    margin-top: 20px;
+}
+
+.duitku-submit .button-primary {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+    text-decoration: none;
+    text-shadow: none;
+}
+
+.duitku-submit .button-primary:hover {
+    background: #135e96;
+    border-color: #135e96;
+    color: #fff;
+}
+
+/* Callback URL Display */
+.duitku-callback-url {
+    background: #f6f7f7;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+}
+
+.duitku-callback-url h3 {
+    margin-top: 0;
+    color: #1d2327;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 782px) {
+    .form-table input[type="text"],
+    .form-table input[type="password"],
+    .form-table input[type="number"],
+    .form-table select {
+        width: 100%;
+        font-size: 16px;
+    }
+    
+    .form-table td {
+        padding: 15px 10px;
+    }
+    
+    .duitku-admin-card {
+        margin: 1em 0;
+        padding: 1em;
+    }
+
+    .duitku-callback-url {
+        padding: 10px;
+    }
+}
+
+/* Loading States */
+.duitku-loading {
+    position: relative;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.duitku-loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #2271b1;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: duitku-spin 1s linear infinite;
+}
+
+@keyframes duitku-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
