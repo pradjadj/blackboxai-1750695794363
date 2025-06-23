@@ -108,13 +108,9 @@ class Duitku_Alfamart extends Duitku_Payment_Gateway {
             }
 
             // Get merchant settings from parent
-            $merchantCode = $this->get_option('merchant_code', $this->settings['merchant_code']);
-            $apiKey = $this->get_option('api_key', $this->settings['api_key']);
-            $environment = $this->get_option('environment', $this->settings['environment']);
-            
-            if (!$merchantCode || !$apiKey) {
-                throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
-            }
+            $merchantCode = $this->settings['merchant_code'];
+            $apiKey = $this->settings['api_key'];
+            $environment = $this->settings['environment'];
 
             $merchantOrderId = 'TRX-' . $order_id;
             $paymentAmount = $order->get_total();
