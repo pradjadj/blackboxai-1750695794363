@@ -8,7 +8,7 @@ class Duitku_BSI extends Duitku_Payment_Gateway {
         $this->id = 'duitku_bsi';
         $this->method_title = 'Duitku - BSI Virtual Account';
         $this->method_description = 'Pembayaran melalui Virtual Account BSI';
-        $this->payment_code = 'I4'; // BSI payment code
+        $this->payment_code = 'BV'; // BSI payment code
 
         // Load the settings
         $this->init_form_fields();
