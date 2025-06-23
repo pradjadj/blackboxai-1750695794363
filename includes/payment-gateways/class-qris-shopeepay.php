@@ -3,7 +3,7 @@ defined('ABSPATH') || exit;
 
 class Duitku_ShopeePay extends WC_Payment_Gateway {
     protected $logger;
-    protected $settings;
+    public $settings;
 
     public function __construct() {
         $this->id = 'duitku_shopeepay';
@@ -109,15 +109,14 @@ class Duitku_ShopeePay extends WC_Payment_Gateway {
                 throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
             }
 
-            // Store payment details in order meta
-            $order->update_meta_data('_duitku_reference', $body['reference']);
-            $order->update_meta_data('_duitku_qr_string', $body['qrString']);
-            $order->update_meta_data('_duitku_payment_code', $this->payment_code);
-            $order->update_meta_data('_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
+            // Store payment details in order meta using HPOS compatible methods
+            $this->update_order_meta($order, '_duitku_reference', $body['reference']);
+            $this->update_order_meta($order, '_duitku_qr_string', $body['qrString']);
+            $this->update_order_meta($order, '_duitku_payment_code', $this->payment_code);
+            $this->update_order_meta($order, '_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
             
             // Update order status
             $order->update_status('pending', __('Awaiting QRIS ShopeePay payment', 'duitku'));
-            $order->save();
 
             // Empty cart
             $woocommerce->cart->empty_cart();
@@ -145,8 +144,8 @@ class Duitku_ShopeePay extends WC_Payment_Gateway {
 
     public function receipt_page($order_id) {
         $order = wc_get_order($order_id);
-        $qr_string = $order->get_meta('_duitku_qr_string');
-        $expiry = $order->get_meta('_duitku_expiry');
+        $qr_string = $this->get_order_meta($order, '_duitku_qr_string');
+        $expiry = $this->get_order_meta($order, '_duitku_expiry');
         
         echo '<div class="duitku-payment-details">';
         
