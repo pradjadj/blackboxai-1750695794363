@@ -204,46 +204,28 @@ class Duitku_ShopeePay extends Duitku_Payment_Gateway {
         
         echo '<div class="duitku-payment-details">';
         
-        // Order Details
-        echo '<div class="duitku-order-details">';
-        echo '<h2>' . esc_html__('Order Details', 'duitku') . '</h2>';
-        echo '<p><strong>' . esc_html__('Order Number:', 'duitku') . '</strong> ' . esc_html($order->get_order_number()) . '</p>';
-        echo '<p><strong>' . esc_html__('Total Amount:', 'duitku') . '</strong> ' . wp_kses_post($order->get_formatted_order_total()) . '</p>';
-        echo '</div>';
+        // Payment Instructions
+        echo '<div class="duitku-instructions">';
+        echo '<p>' . esc_html__('Silahkan Scan QRIS berikut ini:', 'duitku') . '</p>';
         
         // QR Code
         if ($qr_string) {
-            echo '<div class="duitku-qr-code">';
-            echo '<h2>' . esc_html__('Scan QR Code', 'duitku') . '</h2>';
             echo '<div class="qr-code-container">';
             echo '<img src="' . esc_url($qr_string) . '" alt="QRIS QR Code">';
             echo '</div>';
-            echo '</div>';
         }
         
-        // Payment Deadline
+        echo '<p>' . esc_html__('Nominal Pembayaran:', 'duitku') . ' ' . wp_kses_post($order->get_formatted_order_total()) . '</p>';
+        
         if ($expiry) {
-            echo '<div class="duitku-expiry">';
-            echo '<h2>' . esc_html__('Payment Deadline', 'duitku') . '</h2>';
-            echo '<p class="countdown" data-expiry="' . esc_attr($expiry) . '">' . esc_html(date('Y-m-d H:i:s', $expiry)) . ' WIB</p>';
-            echo '</div>';
+            echo '<p>' . esc_html__('Batas waktu pembayaran:', 'duitku') . ' ' . esc_html(date('Y-m-d H:i:s', $expiry)) . ' WIB</p>';
         }
-        
-        // Payment Instructions
-        if ($this->instructions) {
-            echo '<div class="duitku-instructions">';
-            echo '<h2>' . esc_html__('Payment Instructions', 'duitku') . '</h2>';
-            echo '<div class="instruction-steps">';
-            echo wp_kses_post(nl2br($this->instructions));
-            echo '</div>';
-            echo '</div>';
-        }
+        echo '</div>';
         
         // Payment Status
         echo '<div class="duitku-status">';
-        echo '<h2>' . esc_html__('Payment Status', 'duitku') . '</h2>';
-        echo '<p class="status-message">' . esc_html__('Waiting for your payment...', 'duitku') . '</p>';
         echo '<div class="duitku-spinner"></div>';
+        echo '<p class="status-message">' . esc_html__('Menunggu pembayaran...', 'duitku') . '</p>';
         echo '</div>';
         
         // Add order ID for AJAX
