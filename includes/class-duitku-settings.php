@@ -28,11 +28,32 @@ class Duitku_Settings {
     }
 
     private function init_settings() {
+        // Get current settings
         $this->options = get_option($this->option_key);
+        
+        // Ensure we have an array
         if (!is_array($this->options)) {
-            $this->options = $this->get_defaults();
-            update_option($this->option_key, $this->options);
+            $this->options = array();
         }
+        
+        // Get defaults
+        $defaults = $this->get_defaults();
+        
+        // Merge with defaults and ensure critical fields are trimmed
+        $this->options = wp_parse_args($this->options, $defaults);
+        
+        if (isset($this->options['merchant_code'])) {
+            $this->options['merchant_code'] = trim($this->options['merchant_code']);
+        }
+        if (isset($this->options['api_key'])) {
+            $this->options['api_key'] = trim($this->options['api_key']);
+        }
+        
+        // Save cleaned settings
+        update_option($this->option_key, $this->options);
+        
+        // Log settings for debugging
+        error_log('Duitku settings initialized: ' . print_r($this->options, true));
     }
 
     public function register_settings() {
@@ -169,13 +190,46 @@ class Duitku_Settings {
     }
 
     public function save_settings() {
-        woocommerce_update_options($this->get_settings_fields());
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
+
+        // Get all settings fields
+        $fields = $this->get_settings_fields();
+        $settings = array();
         
-        // Refresh the options after saving
-        $this->options = get_option($this->option_key, $this->get_defaults());
+        // Save each field with proper sanitization
+        foreach ($fields as $field) {
+            if (isset($field['id']) && $field['id'] !== 'duitku_settings_section') {
+                $value = isset($_POST[$field['id']]) ? sanitize_text_field($_POST[$field['id']]) : '';
+                
+                // Special handling for merchant_code and api_key
+                if ($field['id'] === 'merchant_code' || $field['id'] === 'api_key') {
+                    $value = trim($value);
+                }
+                
+                $settings[$field['id']] = $value;
+            }
+        }
+        
+        // Merge with existing settings to preserve any additional fields
+        $existing_settings = get_option($this->option_key, array());
+        if (is_array($existing_settings)) {
+            $settings = wp_parse_args($settings, $existing_settings);
+        }
+        
+        // Update settings
+        update_option($this->option_key, $settings);
+        $this->options = $settings;
+        
+        // Log the saved settings for debugging
+        error_log('Duitku settings saved: ' . print_r($settings, true));
         
         // Add success message
         WC_Admin_Settings::add_message(__('Duitku settings saved successfully.', 'duitku'));
+        
+        // Force refresh of settings in gateway classes
+        do_action('duitku_settings_updated');
     }
 
     private function get_defaults() {
