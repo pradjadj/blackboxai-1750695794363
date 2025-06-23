@@ -38,24 +38,6 @@ define('DUITKU_PLUGIN_VERSION', '1.0');
 define('DUITKU_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('DUITKU_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-// Autoload classes
-spl_autoload_register(function ($class) {
-    $prefix = 'Duitku\\';
-    $base_dir = DUITKU_PLUGIN_DIR . 'includes/';
-
-    $len = strlen($prefix);
-    if (strncmp($prefix, $class, $len) !== 0) {
-        return;
-    }
-
-    $relative_class = substr($class, $len);
-    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-
-    if (file_exists($file)) {
-        require $file;
-    }
-});
-
 // Initialize the plugin
 function duitku_init() {
     if (!class_exists('WC_Payment_Gateway')) {
@@ -63,7 +45,7 @@ function duitku_init() {
     }
     
     // Include core files
-    require_once DUITKU_PLUGIN_DIR . 'includes/duitku-logger.php'; // Load logger first
+    require_once DUITKU_PLUGIN_DIR . 'includes/duitku-logger.php';
     require_once DUITKU_PLUGIN_DIR . 'includes/class-duitku-settings.php';
     require_once DUITKU_PLUGIN_DIR . 'includes/class-duitku-payment-gateway.php';
     require_once DUITKU_PLUGIN_DIR . 'includes/class-callback-handler.php';
@@ -76,12 +58,30 @@ function duitku_init() {
 
     // Initialize callback handler
     new Duitku_Callback_Handler();
+
+    // Initialize settings
+    Duitku_Settings::get_instance();
 }
 add_action('plugins_loaded', 'duitku_init');
 
+// Add payment gateways to WooCommerce
+function add_duitku_payment_gateways($methods) {
+    $methods[] = 'Duitku_BNI';
+    $methods[] = 'Duitku_BRI';
+    $methods[] = 'Duitku_Mandiri';
+    $methods[] = 'Duitku_BSI';
+    $methods[] = 'Duitku_CIMB';
+    $methods[] = 'Duitku_Permata';
+    $methods[] = 'Duitku_Alfamart';
+    $methods[] = 'Duitku_ShopeePay';
+    $methods[] = 'Duitku_NobuBank';
+    return $methods;
+}
+add_filter('woocommerce_payment_gateways', 'add_duitku_payment_gateways');
+
 // Add settings link on plugin page
 function duitku_add_settings_link($links) {
-    $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=duitku_settings') . '">Settings</a>';
+    $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout') . '">Settings</a>';
     array_unshift($links, $settings_link);
     return $links;
 }
