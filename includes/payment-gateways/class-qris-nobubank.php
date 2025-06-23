@@ -8,7 +8,7 @@ class Duitku_NobuBank extends Duitku_Payment_Gateway {
         $this->id = 'duitku_nobubank';
         $this->method_title = 'Duitku - Nobu Bank QRIS';
         $this->method_description = 'Pembayaran melalui Nobu Bank QRIS';
-        $this->payment_code = 'NB'; // Nobu Bank QRIS payment code
+        $this->payment_code = 'DQ'; // Nobu Bank QRIS payment code
 
         // Load the settings
         $this->init_form_fields();
