@@ -1,2 +1,1 @@
-# blackboxai-1750695794363
-Built by https://www.blackbox.ai
+Plugin Duitku Payment Gateway for WooCommerce - Display directly on checkout page
