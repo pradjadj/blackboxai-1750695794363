@@ -22,7 +22,9 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         
         // Get settings from Duitku_Settings
         $this->settings = get_option('duitku_settings');
-        if (!is_array($this->settings)) {
+        
+        // Validate settings
+        if (!is_array($this->settings) || empty($this->settings['merchant_code']) || empty($this->settings['api_key'])) {
             $this->settings = array(
                 'merchant_code' => '',
                 'api_key' => '',
@@ -30,6 +32,10 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
                 'expiry_period' => '60',
                 'enable_logging' => 'yes'
             );
+            update_option('duitku_settings', $this->settings);
+            add_action('admin_notices', function() {
+                echo '<div class="error"><p>' . __('Please configure merchant code and API key in Duitku settings', 'duitku') . '</p></div>';
+            });
         }
         
         // Initialize logger
@@ -91,11 +97,17 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         $order = wc_get_order($order_id);
         
         try {
-            // Prepare transaction data
-            $merchantCode = $this->settings['merchant_code'];
+            // Validate and get merchant settings
+            $merchantCode = isset($this->settings['merchant_code']) ? $this->settings['merchant_code'] : '';
+            $apiKey = isset($this->settings['api_key']) ? $this->settings['api_key'] : '';
+            
+            if (empty($merchantCode) || empty($apiKey)) {
+                $this->logger->log('Missing merchant configuration');
+                throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
+            }
+
             $merchantOrderId = 'TRX-' . $order_id;
             $paymentAmount = $order->get_total();
-            $apiKey = $this->settings['api_key'];
             
             // Generate signature according to Duitku documentation
             $signature = md5($merchantCode . $merchantOrderId . intval($paymentAmount) . $apiKey);
@@ -141,10 +153,15 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
                 'expiryPeriod' => intval($this->settings['expiry_period'])
             );
 
+            // Validate and get environment setting
+            $environment = isset($this->settings['environment']) ? $this->settings['environment'] : 'development';
+            
             // Get API endpoint based on environment
-            $endpoint = $this->settings['environment'] === 'production' 
+            $endpoint = $environment === 'production' 
                 ? 'https://passport.duitku.com/webapi/api/merchant/v2/inquiry'
                 : 'https://sandbox.duitku.com/webapi/api/merchant/v2/inquiry';
+
+            $this->logger->log('Using ' . $environment . ' environment: ' . $endpoint);
 
             // Make API request
             $response = wp_remote_post($endpoint, array(
