@@ -101,8 +101,8 @@ class Duitku_Callback_Handler {
     }
 
     protected function get_order_from_callback($data) {
-        // Extract order ID from merchantOrderId (format: DPAY-order_id)
-        $order_id = str_replace('DPAY-', '', $data['merchantOrderId']);
+        // Extract order ID from merchantOrderId (format: TRX-order_id)
+        $order_id = str_replace('TRX-', '', $data['merchantOrderId']);
         
         $order = wc_get_order($order_id);
         if (!$order) {
