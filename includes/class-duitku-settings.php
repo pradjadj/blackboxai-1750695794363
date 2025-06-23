@@ -14,12 +14,8 @@ class Duitku_Settings {
     }
 
     private function __construct() {
-        // Initialize settings with defaults if not set
-        $this->options = get_option($this->option_key);
-        if (!is_array($this->options)) {
-            $this->options = $this->get_defaults();
-            update_option($this->option_key, $this->options);
-        }
+        // Initialize settings
+        $this->init_settings();
         
         // Add WooCommerce settings tab
         add_filter('woocommerce_settings_tabs_array', array($this, 'add_settings_tab'), 50);
@@ -27,14 +23,46 @@ class Duitku_Settings {
         add_action('woocommerce_update_options_duitku', array($this, 'save_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         
-        // Add settings link to plugins page
-        add_filter('plugin_action_links_' . plugin_basename(DUITKU_PLUGIN_FILE), array($this, 'add_settings_link'));
+        // Register settings
+        add_action('admin_init', array($this, 'register_settings'));
     }
 
-    public function add_settings_link($links) {
-        $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=duitku') . '">' . __('Settings', 'duitku') . '</a>';
-        array_unshift($links, $settings_link);
-        return $links;
+    private function init_settings() {
+        $this->options = get_option($this->option_key);
+        if (!is_array($this->options)) {
+            $this->options = $this->get_defaults();
+            update_option($this->option_key, $this->options);
+        }
+    }
+
+    public function register_settings() {
+        register_setting(
+            'woocommerce',
+            $this->option_key,
+            array(
+                'type' => 'array',
+                'description' => 'Duitku Payment Gateway Settings',
+                'sanitize_callback' => array($this, 'sanitize_settings')
+            )
+        );
+    }
+
+    public function sanitize_settings($input) {
+        $sanitized = array();
+        $fields = $this->get_settings_fields();
+        
+        foreach ($fields as $field) {
+            if (isset($field['id']) && $field['id'] !== 'duitku_settings_section') {
+                $key = $field['id'];
+                if (isset($input[$key])) {
+                    $sanitized[$key] = sanitize_text_field($input[$key]);
+                } else {
+                    $sanitized[$key] = isset($field['default']) ? $field['default'] : '';
+                }
+            }
+        }
+        
+        return $sanitized;
     }
 
     public function enqueue_admin_scripts($hook) {
@@ -50,30 +78,24 @@ class Duitku_Settings {
     }
 
     public function output_settings() {
+        echo '<h2>' . esc_html__('Duitku Payment Gateway Settings', 'duitku') . '</h2>';
+        
         $callback_url = add_query_arg('duitku_callback', '1', site_url('/'));
-        ?>
-        <div class="duitku-admin-card">
-            <h2><?php _e('Callback URL', 'duitku'); ?></h2>
-            <p><?php _e('Use this URL in your Duitku merchant dashboard:', 'duitku'); ?></p>
-            <code><?php echo esc_url($callback_url); ?></code>
-        </div>
-        <form method="post" action="">
-            <?php
-            wp_nonce_field('woocommerce-settings');
-            $settings = $this->get_settings_fields();
-            
-            // Set the current values
-            foreach ($settings as $key => $field) {
-                if (isset($field['id']) && isset($this->options[$field['id']])) {
-                    $settings[$key]['value'] = $this->options[$field['id']];
-                }
-            }
-            
-            woocommerce_admin_fields($settings);
-            submit_button(__('Save Changes', 'duitku'));
-            ?>
-        </form>
-        <?php
+        echo '<div class="duitku-admin-card">';
+        echo '<h3>' . esc_html__('Callback URL', 'duitku') . '</h3>';
+        echo '<p>' . esc_html__('Use this URL in your Duitku merchant dashboard:', 'duitku') . '</p>';
+        echo '<code>' . esc_url($callback_url) . '</code>';
+        echo '</div>';
+
+        echo '<form method="post" action="">';
+        echo '<table class="form-table">';
+        woocommerce_admin_fields($this->get_settings_fields());
+        echo '</table>';
+        echo '<p class="submit">';
+        echo '<input type="submit" name="save" class="button-primary woocommerce-save-button" value="' . esc_attr__('Save changes', 'woocommerce') . '" />';
+        wp_nonce_field('woocommerce-settings');
+        echo '</p>';
+        echo '</form>';
     }
 
     private function get_settings_fields() {
@@ -139,39 +161,11 @@ class Duitku_Settings {
     }
 
     public function save_settings() {
-        if (!current_user_can('manage_woocommerce')) {
-            return;
-        }
-
-        // Verify nonce
-        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'woocommerce-settings')) {
-            return;
-        }
-
-        $fields = $this->get_settings_fields();
-        $settings = get_option($this->option_key, array());
+        woocommerce_update_options($this->get_settings_fields());
         
-        foreach ($fields as $field) {
-            if (isset($field['id']) && $field['id'] !== 'duitku_settings_section') {
-                $key = $field['id'];
-                
-                if (isset($_POST[$key])) {
-                    $value = sanitize_text_field($_POST[$key]);
-                    $settings[$key] = $value;
-                } else if ($field['type'] === 'checkbox') {
-                    $settings[$key] = 'no';
-                } else {
-                    $settings[$key] = isset($field['default']) ? $field['default'] : '';
-                }
-            }
-        }
-
-        // Save settings
-        update_option($this->option_key, $settings);
+        // Refresh the options after saving
+        $this->options = get_option($this->option_key, $this->get_defaults());
         
-        // Refresh the options
-        $this->options = $settings;
-
         // Add success message
         WC_Admin_Settings::add_message(__('Duitku settings saved successfully.', 'duitku'));
     }
