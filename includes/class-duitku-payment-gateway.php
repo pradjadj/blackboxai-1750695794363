@@ -97,22 +97,48 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
             $paymentAmount = $order->get_total();
             $apiKey = $this->settings['api_key'];
             
-            // Generate signature
-            $signature = md5($merchantCode . $merchantOrderId . $paymentAmount . $apiKey);
+            // Generate signature according to Duitku documentation
+            $signature = md5($merchantCode . $merchantOrderId . intval($paymentAmount) . $apiKey);
             
-            // Prepare API request data
+            // Prepare API request data according to Duitku documentation
             $data = array(
                 'merchantCode' => $merchantCode,
-                'paymentAmount' => $paymentAmount,
+                'paymentAmount' => intval($paymentAmount),
                 'merchantOrderId' => $merchantOrderId,
                 'productDetails' => $this->get_product_details($order),
+                'customerVaName' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
                 'email' => $order->get_billing_email(),
                 'phoneNumber' => $order->get_billing_phone(),
-                'customerVaName' => get_bloginfo('name'),
+                'additionalParam' => '',
+                'merchantUserInfo' => '',
+                'customerDetail' => array(
+                    'firstName' => $order->get_billing_first_name(),
+                    'lastName' => $order->get_billing_last_name(),
+                    'email' => $order->get_billing_email(),
+                    'phoneNumber' => $order->get_billing_phone(),
+                    'billingAddress' => array(
+                        'firstName' => $order->get_billing_first_name(),
+                        'lastName' => $order->get_billing_last_name(),
+                        'address' => $order->get_billing_address_1(),
+                        'city' => $order->get_billing_city(),
+                        'postalCode' => $order->get_billing_postcode(),
+                        'phone' => $order->get_billing_phone(),
+                        'countryCode' => $order->get_billing_country()
+                    ),
+                    'shippingAddress' => array(
+                        'firstName' => $order->get_shipping_first_name(),
+                        'lastName' => $order->get_shipping_last_name(),
+                        'address' => $order->get_shipping_address_1(),
+                        'city' => $order->get_shipping_city(),
+                        'postalCode' => $order->get_shipping_postcode(),
+                        'phone' => $order->get_billing_phone(),
+                        'countryCode' => $order->get_shipping_country()
+                    )
+                ),
                 'returnUrl' => $this->get_return_url($order),
                 'callbackUrl' => add_query_arg('duitku_callback', '1', site_url('/')),
                 'signature' => $signature,
-                'expiryPeriod' => $this->settings['expiry_period']
+                'expiryPeriod' => intval($this->settings['expiry_period'])
             );
 
             // Get API endpoint based on environment
@@ -133,16 +159,33 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
 
             $body = json_decode(wp_remote_retrieve_body($response), true);
 
-            if (!$body || isset($body['statusCode']) && $body['statusCode'] !== '00') {
-                throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
+            if (!$body) {
+                throw new Exception(__('Empty response from Duitku API', 'duitku'));
+            }
+
+            if (!isset($body['statusCode'])) {
+                throw new Exception(__('Invalid response format from Duitku API', 'duitku'));
+            }
+
+            if ($body['statusCode'] !== '00') {
+                $error_message = isset($body['statusMessage']) ? $body['statusMessage'] : __('Unknown error occurred', 'duitku');
+                $this->logger->log('Duitku API Error: ' . $error_message);
+                throw new Exception($error_message);
+            }
+
+            if (!isset($body['paymentUrl'])) {
+                throw new Exception(__('Payment URL not received from Duitku API', 'duitku'));
             }
 
             // Store payment details in order meta using HPOS compatible methods
             $this->update_order_meta($order, '_duitku_reference', $body['reference']);
-            if (isset($body['vaNumber'])) {
+            $this->update_order_meta($order, '_duitku_payment_url', $body['paymentUrl']);
+            
+            // Store additional payment details if available
+            if (!empty($body['vaNumber'])) {
                 $this->update_order_meta($order, '_duitku_va_number', $body['vaNumber']);
             }
-            if (isset($body['qrString'])) {
+            if (!empty($body['qrString'])) {
                 $this->update_order_meta($order, '_duitku_qr_string', $body['qrString']);
             }
             $this->update_order_meta($order, '_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
@@ -150,10 +193,10 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
             // Update order status
             $order->update_status('pending', __('Awaiting payment via Duitku', 'duitku'));
 
-            // Return success
+            // Return success and redirect to Duitku payment page
             return array(
                 'result' => 'success',
-                'redirect' => $order->get_checkout_payment_url(true)
+                'redirect' => $body['paymentUrl']
             );
 
         } catch (Exception $e) {
