@@ -15,7 +15,7 @@ class Duitku_Logger {
 
     public function log($message, $level = 'error') {
         // Check if logging is enabled in settings
-        if (!isset($this->settings['enable_logging']) || $this->settings['enable_logging'] !== true) {
+        if (!isset($this->settings['enable_logging']) || $this->settings['enable_logging'] !== 'yes') {
             return;
         }
 
