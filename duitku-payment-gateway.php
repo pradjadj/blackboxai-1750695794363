@@ -81,7 +81,7 @@ add_filter('woocommerce_payment_gateways', 'add_duitku_payment_gateways');
 
 // Add settings link on plugin page
 function duitku_add_settings_link($links) {
-    $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout') . '">Settings</a>';
+    $settings_link = '<a href="' . admin_url('admin.php?page=wc-settings&tab=duitku') . '">Settings</a>';
     array_unshift($links, $settings_link);
     return $links;
 }
