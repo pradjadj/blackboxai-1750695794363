@@ -83,8 +83,14 @@ class Duitku_BNI extends Duitku_Payment_Gateway {
             // Add payment fee if set
             $fee = $this->calculate_fee($order->get_total());
             if ($fee > 0) {
-                $fee_name = sprintf(__('Payment Fee (%s)', 'duitku'), $this->title);
-                $order->add_fee($fee_name, $fee, true);
+                $fee_item = new WC_Order_Item_Fee();
+                $fee_item->set_name(sprintf(__('Payment Fee (%s)', 'duitku'), $this->title));
+                $fee_item->set_amount($fee);
+                $fee_item->set_tax_status('taxable');
+                $fee_item->set_total($fee);
+                
+                // Add fee to order
+                $order->add_item($fee_item);
                 $order->calculate_totals();
             }
 
