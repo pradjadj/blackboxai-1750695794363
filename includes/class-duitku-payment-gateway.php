@@ -106,7 +106,7 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
                 'paymentAmount' => intval($paymentAmount),
                 'merchantOrderId' => $merchantOrderId,
                 'productDetails' => $this->get_product_details($order),
-                'customerVaName' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+                'customerVaName' => get_bloginfo('name'),
                 'email' => $order->get_billing_email(),
                 'phoneNumber' => $order->get_billing_phone(),
                 'additionalParam' => '',
