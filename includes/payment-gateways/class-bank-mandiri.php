@@ -8,7 +8,7 @@ class Duitku_Mandiri extends Duitku_Payment_Gateway {
         $this->id = 'duitku_mandiri';
         $this->method_title = 'Duitku - Mandiri Virtual Account';
         $this->method_description = 'Pembayaran melalui Virtual Account Mandiri';
-        $this->payment_code = 'I3'; // Mandiri payment code
+        $this->payment_code = 'M2'; // Mandiri payment code
 
         // Load the settings
         $this->init_form_fields();
