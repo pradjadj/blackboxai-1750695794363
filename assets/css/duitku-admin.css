@@ -70,7 +70,6 @@
 }
 
 .form-table input[type="checkbox"]:checked {
-    background: #2271b1;
     border-color: #2271b1;
 }
 
