@@ -8,7 +8,7 @@ class Duitku_Permata extends Duitku_Payment_Gateway {
         $this->id = 'duitku_permata';
         $this->method_title = 'Duitku - Permata Virtual Account';
         $this->method_description = 'Pembayaran melalui Virtual Account Permata';
-        $this->payment_code = 'I6'; // Permata payment code
+        $this->payment_code = 'BT'; // Permata payment code
 
         // Load the settings
         $this->init_form_fields();
