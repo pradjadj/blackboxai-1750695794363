@@ -18,10 +18,9 @@ class Duitku_Alfamart extends Duitku_Payment_Gateway {
         $this->enabled = $this->get_option('enabled', 'yes');
         $this->title = $this->get_option('title', 'Alfamart');
         $this->description = $this->get_option('description');
-        $this->instructions = $this->get_option('instructions');
-        $this->expiry_time = $this->get_option('expiry_time', '24');
         $this->fee_type = $this->get_option('fee_type', 'nominal');
         $this->fee_value = $this->get_option('fee_value', '0');
+        $this->expiry_period = $this->get_option('expiry_period', '1440'); // Default 24 hours in minutes
 
         // Actions
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
@@ -50,31 +49,15 @@ class Duitku_Alfamart extends Duitku_Payment_Gateway {
                 'default' => __('Pay at your nearest Alfamart store. The payment will expire after the specified time limit.', 'duitku'),
                 'desc_tip' => true,
             ),
-            'instructions' => array(
-                'title' => __('Payment Instructions', 'duitku'),
-                'type' => 'textarea',
-                'description' => __('Instructions that will be added to the thank you page and emails.', 'duitku'),
-                'default' => __(
-                    "1. Save your Payment Code\n" .
-                    "2. Visit your nearest Alfamart store\n" .
-                    "3. Tell the cashier you want to pay using Duitku\n" .
-                    "4. Show your Payment Code to the cashier\n" .
-                    "5. Make the payment according to the total amount\n" .
-                    "6. Keep your payment receipt\n" .
-                    "7. Your payment is complete",
-                    'duitku'
-                ),
-                'desc_tip' => true,
-            ),
-            'expiry_time' => array(
-                'title' => __('Expiry Time', 'duitku'),
+            'expiry_period' => array(
+                'title' => __('Expiry Period', 'duitku'),
                 'type' => 'number',
-                'description' => __('Time in hours before the payment expires. Default is 24 hours.', 'duitku'),
-                'default' => '24',
+                'description' => __('Time in minutes before the payment expires. Leave empty to use global setting.', 'duitku'),
+                'default' => '',
                 'desc_tip' => true,
+                'placeholder' => __('Use global setting', 'duitku'),
                 'custom_attributes' => array(
                     'min' => '1',
-                    'max' => '48',
                     'step' => '1'
                 )
             ),
@@ -113,19 +96,40 @@ class Duitku_Alfamart extends Duitku_Payment_Gateway {
             // Add payment fee if set
             $fee = $this->calculate_fee($order->get_total());
             if ($fee > 0) {
-                $fee_name = sprintf(__('Payment Fee (%s)', 'duitku'), $this->title);
-                $order->add_fee($fee_name, $fee, true);
+                $fee_item = new WC_Order_Item_Fee();
+                $fee_item->set_name(sprintf(__('Payment Fee (%s)', 'duitku'), $this->title));
+                $fee_item->set_amount($fee);
+                $fee_item->set_tax_status('taxable');
+                $fee_item->set_total($fee);
+                
+                // Add fee to order
+                $order->add_item($fee_item);
                 $order->calculate_totals();
             }
 
-            // Prepare transaction data
-            $merchantCode = $this->settings['merchant_code'];
-            $merchantOrderId = 'DPAY-' . $order_id;
+            // Get merchant settings from parent
+            $merchantCode = $this->get_option('merchant_code', $this->settings['merchant_code']);
+            $apiKey = $this->get_option('api_key', $this->settings['api_key']);
+            $environment = $this->get_option('environment', $this->settings['environment']);
+            
+            if (!$merchantCode || !$apiKey) {
+                throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
+            }
+
+            $merchantOrderId = 'TRX-' . $order_id;
             $paymentAmount = $order->get_total();
-            $apiKey = $this->settings['api_key'];
             
             // Generate signature
             $signature = md5($merchantCode . $merchantOrderId . $paymentAmount . $apiKey);
+            
+            // Get expiry period - use local setting if set, otherwise use global
+            $expiryPeriod = $this->get_option('expiry_period');
+            if (empty($expiryPeriod)) {
+                $expiryPeriod = $this->settings['expiry_period'];
+            }
+            if (empty($expiryPeriod)) {
+                $expiryPeriod = 1440; // Default to 24 hours
+            }
             
             // Prepare API request data
             $data = array(
@@ -135,16 +139,16 @@ class Duitku_Alfamart extends Duitku_Payment_Gateway {
                 'productDetails' => $this->get_product_details($order),
                 'email' => $order->get_billing_email(),
                 'phoneNumber' => $order->get_billing_phone(),
-                'customerVaName' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+                'customerVaName' => get_bloginfo('name'),
                 'returnUrl' => $this->get_return_url($order),
                 'callbackUrl' => add_query_arg('duitku_callback', '1', site_url('/')),
                 'signature' => $signature,
                 'paymentMethod' => $this->payment_code,
-                'expiryPeriod' => intval($this->expiry_time) * 60 // Convert hours to minutes
+                'expiryPeriod' => intval($expiryPeriod)
             );
 
             // Get API endpoint based on environment
-            $endpoint = $this->settings['environment'] === 'production' 
+            $endpoint = $environment === 'production' 
                 ? 'https://passport.duitku.com/webapi/api/merchant/v2/inquiry'
                 : 'https://sandbox.duitku.com/webapi/api/merchant/v2/inquiry';
 
@@ -165,11 +169,15 @@ class Duitku_Alfamart extends Duitku_Payment_Gateway {
                 throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
             }
 
+            if (!isset($body['reference']) || !isset($body['paymentCode'])) {
+                throw new Exception(__('Invalid response from Duitku: Missing required fields', 'duitku'));
+            }
+
             // Store payment details in order meta
             $this->update_order_meta($order, '_duitku_reference', $body['reference']);
             $this->update_order_meta($order, '_duitku_payment_code', $body['paymentCode']);
             $this->update_order_meta($order, '_duitku_payment_method', $this->payment_code);
-            $this->update_order_meta($order, '_duitku_expiry', time() + (intval($this->expiry_time) * 3600));
+            $this->update_order_meta($order, '_duitku_expiry', time() + (intval($expiryPeriod) * 60));
             
             // Update order status
             $order->update_status('pending', __('Awaiting Alfamart payment', 'duitku'));
