@@ -1,0 +1,174 @@
+<?php
+defined('ABSPATH') || exit;
+
+class Duitku_Payment_Gateway extends WC_Payment_Gateway {
+    protected $settings;
+    protected $logger;
+
+    public function __construct() {
+        $this->id = 'duitku';
+        $this->method_title = 'Duitku Payment Gateway';
+        $this->method_description = 'Duitku Payment Gateway for WooCommerce - Display directly on checkout page';
+        $this->has_fields = false;
+        $this->supports = array('products');
+
+        // Load settings
+        $this->settings = get_option('duitku_settings');
+        $this->enabled = 'yes';
+        
+        // Initialize logger
+        $this->logger = new Duitku_Logger();
+
+        // Actions
+        add_action('woocommerce_api_duitku_callback', array($this, 'handle_callback'));
+        add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
+        add_action('wp_enqueue_scripts', array($this, 'payment_scripts'));
+    }
+
+    public function payment_scripts() {
+        if (!is_checkout()) {
+            return;
+        }
+
+        wp_enqueue_script(
+            'duitku-ajax',
+            DUITKU_PLUGIN_URL . 'assets/js/duitku-ajax.js',
+            array('jquery'),
+            DUITKU_PLUGIN_VERSION,
+            true
+        );
+
+        wp_localize_script('duitku-ajax', 'duitkuAjax', array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('duitku-ajax-nonce'),
+            'checkInterval' => 3000 // 3 seconds
+        ));
+    }
+
+    public function process_payment($order_id) {
+        $order = wc_get_order($order_id);
+        
+        try {
+            // Prepare transaction data
+            $merchantCode = $this->settings['merchant_code'];
+            $merchantOrderId = 'DPAY-' . $order_id;
+            $paymentAmount = $order->get_total();
+            $apiKey = $this->settings['api_key'];
+            
+            // Generate signature
+            $signature = md5($merchantCode . $merchantOrderId . $paymentAmount . $apiKey);
+            
+            // Prepare API request data
+            $data = array(
+                'merchantCode' => $merchantCode,
+                'paymentAmount' => $paymentAmount,
+                'merchantOrderId' => $merchantOrderId,
+                'productDetails' => $this->get_product_details($order),
+                'email' => $order->get_billing_email(),
+                'phoneNumber' => $order->get_billing_phone(),
+                'customerVaName' => get_bloginfo('name'),
+                'returnUrl' => $this->get_return_url($order),
+                'callbackUrl' => add_query_arg('duitku_callback', '1', site_url('/')),
+                'signature' => $signature,
+                'expiryPeriod' => $this->settings['expiry_period']
+            );
+
+            // Get API endpoint based on environment
+            $endpoint = $this->settings['environment'] === 'production' 
+                ? 'https://passport.duitku.com/webapi/api/merchant/v2/inquiry'
+                : 'https://sandbox.duitku.com/webapi/api/merchant/v2/inquiry';
+
+            // Make API request
+            $response = wp_remote_post($endpoint, array(
+                'body' => json_encode($data),
+                'headers' => array('Content-Type' => 'application/json'),
+                'timeout' => 30
+            ));
+
+            if (is_wp_error($response)) {
+                throw new Exception($response->get_error_message());
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+
+            if (!$body || isset($body['statusCode']) && $body['statusCode'] !== '00') {
+                throw new Exception(isset($body['statusMessage']) ? $body['statusMessage'] : 'Unknown error occurred');
+            }
+
+            // Store payment details in order meta
+            $order->update_meta_data('_duitku_reference', $body['reference']);
+            if (isset($body['vaNumber'])) {
+                $order->update_meta_data('_duitku_va_number', $body['vaNumber']);
+            }
+            if (isset($body['qrString'])) {
+                $order->update_meta_data('_duitku_qr_string', $body['qrString']);
+            }
+            $order->update_meta_data('_duitku_expiry', time() + ($this->settings['expiry_period'] * 60));
+            
+            // Update order status
+            $order->update_status('pending', __('Awaiting payment via Duitku', 'duitku'));
+            $order->save();
+
+            // Return success
+            return array(
+                'result' => 'success',
+                'redirect' => $order->get_checkout_payment_url(true)
+            );
+
+        } catch (Exception $e) {
+            $this->logger->log('Payment processing failed: ' . $e->getMessage());
+            wc_add_notice('Payment error: ' . $e->getMessage(), 'error');
+            return array('result' => 'fail');
+        }
+    }
+
+    protected function get_product_details($order) {
+        $items = array();
+        foreach ($order->get_items() as $item) {
+            $items[] = $item->get_name();
+        }
+        return implode(', ', $items);
+    }
+
+    public function receipt_page($order_id) {
+        $order = wc_get_order($order_id);
+        $va_number = $order->get_meta('_duitku_va_number');
+        $qr_string = $order->get_meta('_duitku_qr_string');
+        $expiry = $order->get_meta('_duitku_expiry');
+        
+        echo '<div class="duitku-payment-details">';
+        
+        if ($va_number) {
+            echo '<div class="duitku-va-number">';
+            echo '<h3>' . esc_html__('Virtual Account Number', 'duitku') . '</h3>';
+            echo '<p class="va-number">' . esc_html($va_number) . '</p>';
+            echo '</div>';
+        }
+        
+        if ($qr_string) {
+            echo '<div class="duitku-qr-code">';
+            echo '<h3>' . esc_html__('QRIS Code', 'duitku') . '</h3>';
+            echo '<img src="' . esc_url($this->generate_qr_url($qr_string)) . '" alt="QRIS Code" />';
+            echo '</div>';
+        }
+        
+        if ($expiry) {
+            echo '<div class="duitku-expiry">';
+            echo '<h3>' . esc_html__('Payment Deadline', 'duitku') . '</h3>';
+            echo '<p>' . esc_html(date('Y-m-d H:i:s', $expiry)) . ' WIB</p>';
+            echo '</div>';
+        }
+        
+        echo '<div class="duitku-status">';
+        echo '<p>' . esc_html__('Waiting for your payment...', 'duitku') . '</p>';
+        echo '<div class="duitku-spinner"></div>';
+        echo '</div>';
+        
+        echo '</div>';
+    }
+
+    protected function generate_qr_url($qr_string) {
+        // You might want to use a QR code generation service or library here
+        return 'https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=' . urlencode($qr_string);
+    }
+}
