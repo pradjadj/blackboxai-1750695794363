@@ -73,7 +73,7 @@ The following payment methods are supported:
 
 ## Logging
 
-Payment processing logs are stored in WooCommerce > Status > Logs with the prefix 'duitku-va'.
+Payment processing logs are stored in WooCommerce > Status > Logs with the prefix 'duitku-pg'.
 
 ## Support
 
