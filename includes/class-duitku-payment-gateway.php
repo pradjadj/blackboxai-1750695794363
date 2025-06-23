@@ -46,6 +46,25 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         add_action('woocommerce_api_duitku_callback', array($this, 'handle_callback'));
         add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
         add_action('wp_enqueue_scripts', array($this, 'payment_scripts'));
+        add_action('duitku_settings_updated', array($this, 'refresh_settings'));
+    }
+
+    public function refresh_settings() {
+        // Get fresh settings
+        $settings = get_option('duitku_settings', array());
+        
+        if (is_array($settings)) {
+            // Ensure critical fields are trimmed
+            if (isset($settings['merchant_code'])) {
+                $settings['merchant_code'] = trim($settings['merchant_code']);
+            }
+            if (isset($settings['api_key'])) {
+                $settings['api_key'] = trim($settings['api_key']);
+            }
+            
+            $this->settings = $settings;
+            $this->logger->log('Gateway settings refreshed: ' . print_r($settings, true));
+        }
     }
 
     public function init_form_fields() {
@@ -97,14 +116,29 @@ class Duitku_Payment_Gateway extends WC_Payment_Gateway {
         $order = wc_get_order($order_id);
         
         try {
-            // Validate and get merchant settings
-            $merchantCode = isset($this->settings['merchant_code']) ? $this->settings['merchant_code'] : '';
-            $apiKey = isset($this->settings['api_key']) ? $this->settings['api_key'] : '';
+            // Get and validate merchant settings
+            $settings = get_option('duitku_settings', array());
+            
+            // Ensure we have an array
+            if (!is_array($settings)) {
+                $settings = array();
+            }
+            
+            // Get merchant settings with trimmed whitespace
+            $merchantCode = isset($settings['merchant_code']) ? trim($settings['merchant_code']) : '';
+            $apiKey = isset($settings['api_key']) ? trim($settings['api_key']) : '';
+            
+            // Log the values for debugging
+            $this->logger->log('Merchant Code: ' . $merchantCode);
+            $this->logger->log('API Key length: ' . strlen($apiKey));
             
             if (empty($merchantCode) || empty($apiKey)) {
-                $this->logger->log('Missing merchant configuration');
+                $this->logger->log('Missing merchant configuration - Code: [' . $merchantCode . '], Key exists: ' . (!empty($apiKey) ? 'yes' : 'no'));
                 throw new Exception(__('Please configure merchant code and API key in Duitku settings', 'duitku'));
             }
+            
+            // Update settings in case they were trimmed
+            $this->settings = $settings;
 
             $merchantOrderId = 'TRX-' . $order_id;
             $paymentAmount = $order->get_total();
