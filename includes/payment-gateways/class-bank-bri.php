@@ -8,7 +8,7 @@ class Duitku_BRI extends Duitku_Payment_Gateway {
         $this->id = 'duitku_bri';
         $this->method_title = 'Duitku - BRI Virtual Account';
         $this->method_description = 'Pembayaran melalui Virtual Account BRI';
-        $this->payment_code = 'I2'; // BRI payment code
+        $this->payment_code = 'BR'; // BRI payment code
 
         // Load the settings
         $this->init_form_fields();
