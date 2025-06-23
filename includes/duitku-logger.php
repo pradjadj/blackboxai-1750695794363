@@ -20,7 +20,7 @@ class Duitku_Logger {
         }
 
         if ($this->logger) {
-            $context = array('source' => 'duitku-va');
+            $context = array('source' => 'duitku-pg');
             $this->logger->log($level, $message, $context);
         } else {
             error_log('Duitku VA: ' . $message);
@@ -40,7 +40,7 @@ class Duitku_Logger {
         
         // Find and remove Duitku log files
         foreach ($files as $file) {
-            if (strpos($file, 'duitku-va') !== false) {
+            if (strpos($file, 'duitku-pg') !== false) {
                 @unlink(WC_LOG_DIR . $file);
             }
         }
@@ -56,7 +56,7 @@ class Duitku_Logger {
         $logs = array();
 
         foreach ($files as $file) {
-            if (strpos($file, 'duitku-va') !== false) {
+            if (strpos($file, 'duitku-pg') !== false) {
                 $handle = @fopen(WC_LOG_DIR . $file, 'r');
                 if ($handle) {
                     while (($line = fgets($handle)) !== false) {
