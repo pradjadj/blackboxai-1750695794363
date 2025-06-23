@@ -78,24 +78,32 @@ class Duitku_Settings {
     }
 
     public function output_settings() {
+        echo '<div class="duitku-settings-section">';
         echo '<h2>' . esc_html__('Duitku Payment Gateway Settings', 'duitku') . '</h2>';
         
         $callback_url = add_query_arg('duitku_callback', '1', site_url('/'));
         echo '<div class="duitku-admin-card">';
-        echo '<h3>' . esc_html__('Callback URL', 'duitku') . '</h3>';
+        echo '<h2>' . esc_html__('Callback URL', 'duitku') . '</h2>';
         echo '<p>' . esc_html__('Use this URL in your Duitku merchant dashboard:', 'duitku') . '</p>';
+        echo '<div class="duitku-callback-url">';
         echo '<code>' . esc_url($callback_url) . '</code>';
         echo '</div>';
+        echo '</div>';
 
-        echo '<form method="post" action="">';
-        echo '<table class="form-table">';
+        // Output settings fields
+        echo '<div class="duitku-settings-form">';
         woocommerce_admin_fields($this->get_settings_fields());
-        echo '</table>';
-        echo '<p class="submit">';
-        echo '<input type="submit" name="save" class="button-primary woocommerce-save-button" value="' . esc_attr__('Save changes', 'woocommerce') . '" />';
-        wp_nonce_field('woocommerce-settings');
-        echo '</p>';
-        echo '</form>';
+        echo '</div>';
+        
+        // Let WooCommerce handle the submit button
+        echo '</div>';
+        
+        // Remove duplicate submit button
+        echo '<script type="text/javascript">
+            jQuery(document).ready(function($) {
+                $(".submit").not(":first").remove();
+            });
+        </script>';
     }
 
     private function get_settings_fields() {
