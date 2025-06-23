@@ -1,28 +1,26 @@
 <?php
 defined('ABSPATH') || exit;
 
-class Duitku_BNI extends WC_Payment_Gateway {
-    protected $logger;
-    public $settings;
-
+class Duitku_BNI extends Duitku_Payment_Gateway {
     public function __construct() {
+        parent::__construct();
+        
         $this->id = 'duitku_bni';
         $this->method_title = 'Duitku - BNI Virtual Account';
         $this->method_description = 'Pembayaran melalui Virtual Account BNI';
-        $this->has_fields = false;
         $this->payment_code = 'I1'; // BNI payment code
 
-        // Load settings
-        $this->settings = get_option('duitku_settings');
-        $this->enabled = 'yes';
-        $this->title = 'BNI Virtual Account';
-        $this->description = sprintf(
+        // Load the settings
+        $this->init_form_fields();
+        $this->init_settings();
+
+        // Define user set variables
+        $this->enabled = $this->get_option('enabled', 'yes');
+        $this->title = $this->get_option('title', 'BNI Virtual Account');
+        $this->description = $this->get_option('description', sprintf(
             'Pembayaran menggunakan Virtual Account BNI. Expired dalam %d menit.',
             $this->settings['expiry_period'] ?? 60
-        );
-
-        // Initialize logger
-        $this->logger = new Duitku_Logger();
+        ));
 
         // Actions
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
@@ -32,25 +30,40 @@ class Duitku_BNI extends WC_Payment_Gateway {
     public function init_form_fields() {
         $this->form_fields = array(
             'enabled' => array(
-                'title' => __('Enable/Disable', 'woocommerce'),
+                'title' => __('Enable/Disable', 'duitku'),
                 'type' => 'checkbox',
-                'label' => 'Enable BNI Virtual Account Payment',
+                'label' => __('Enable BNI Virtual Account Payment', 'duitku'),
                 'default' => 'yes'
             ),
             'title' => array(
-                'title' => __('Title', 'woocommerce'),
+                'title' => __('Title', 'duitku'),
                 'type' => 'text',
-                'description' => __('Payment method title that the customer will see on your checkout.', 'woocommerce'),
-                'default' => 'BNI Virtual Account',
+                'description' => __('This controls the payment method title which the user sees during checkout.', 'duitku'),
+                'default' => __('BNI Virtual Account', 'duitku'),
                 'desc_tip' => true,
             ),
             'description' => array(
-                'title' => __('Description', 'woocommerce'),
+                'title' => __('Description', 'duitku'),
                 'type' => 'textarea',
-                'description' => __('Payment method description that the customer will see on your checkout.', 'woocommerce'),
+                'description' => __('This controls the payment method description which the user sees during checkout.', 'duitku'),
                 'default' => sprintf(
-                    'Pembayaran menggunakan Virtual Account BNI. Expired dalam %d menit.',
+                    __('Pay using BNI Virtual Account. The payment will expire in %d minutes after order is placed.', 'duitku'),
                     $this->settings['expiry_period'] ?? 60
+                ),
+                'desc_tip' => true,
+            ),
+            'payment_instructions' => array(
+                'title' => __('Payment Instructions', 'duitku'),
+                'type' => 'textarea',
+                'description' => __('Instructions that will be added to the thank you page and emails.', 'duitku'),
+                'default' => __(
+                    "1. Save your BNI Virtual Account number\n" .
+                    "2. Login to your BNI Mobile Banking or Internet Banking\n" .
+                    "3. Select Virtual Account payment\n" .
+                    "4. Enter your Virtual Account number\n" .
+                    "5. Confirm your payment\n" .
+                    "6. Your payment is complete",
+                    'duitku'
                 ),
                 'desc_tip' => true,
             )
@@ -149,27 +162,72 @@ class Duitku_BNI extends WC_Payment_Gateway {
         
         echo '<div class="duitku-payment-details">';
         
+        // Order Details
+        echo '<div class="duitku-order-details">';
+        echo '<h2>' . esc_html__('Order Details', 'duitku') . '</h2>';
+        echo '<p><strong>' . esc_html__('Order Number:', 'duitku') . '</strong> ' . esc_html($order->get_order_number()) . '</p>';
+        echo '<p><strong>' . esc_html__('Total Amount:', 'duitku') . '</strong> ' . wp_kses_post($order->get_formatted_order_total()) . '</p>';
+        echo '</div>';
+        
+        // VA Number
         if ($va_number) {
             echo '<div class="duitku-va-number">';
-            echo '<h3>' . esc_html__('BNI Virtual Account Number', 'duitku') . '</h3>';
-            echo '<p class="va-number">' . esc_html($va_number) . '</p>';
+            echo '<h2>' . esc_html__('BNI Virtual Account Number', 'duitku') . '</h2>';
+            echo '<div class="va-number-box">';
+            echo '<span class="va-number">' . esc_html($va_number) . '</span>';
+            echo '<button class="copy-button" onclick="copyToClipboard(\'' . esc_js($va_number) . '\')">' . esc_html__('Copy', 'duitku') . '</button>';
+            echo '</div>';
             echo '</div>';
         }
         
+        // Payment Deadline
         if ($expiry) {
             echo '<div class="duitku-expiry">';
-            echo '<h3>' . esc_html__('Payment Deadline', 'duitku') . '</h3>';
-            echo '<p>' . esc_html(date('Y-m-d H:i:s', $expiry)) . ' WIB</p>';
+            echo '<h2>' . esc_html__('Payment Deadline', 'duitku') . '</h2>';
+            echo '<p class="countdown" data-expiry="' . esc_attr($expiry) . '">' . esc_html(date('Y-m-d H:i:s', $expiry)) . ' WIB</p>';
             echo '</div>';
         }
         
+        // Payment Instructions
+        $instructions = $this->get_option('payment_instructions');
+        if ($instructions) {
+            echo '<div class="duitku-instructions">';
+            echo '<h2>' . esc_html__('Payment Instructions', 'duitku') . '</h2>';
+            echo '<div class="instruction-steps">';
+            echo wp_kses_post(nl2br($instructions));
+            echo '</div>';
+            echo '</div>';
+        }
+        
+        // Payment Status
         echo '<div class="duitku-status">';
-        echo '<p>' . esc_html__('Waiting for your payment...', 'duitku') . '</p>';
+        echo '<h2>' . esc_html__('Payment Status', 'duitku') . '</h2>';
+        echo '<p class="status-message">' . esc_html__('Waiting for your payment...', 'duitku') . '</p>';
         echo '<div class="duitku-spinner"></div>';
         echo '</div>';
         
         // Add order ID for AJAX
         echo '<input type="hidden" name="order_id" value="' . esc_attr($order_id) . '">';
+        
+        // Add copy to clipboard script
+        ?>
+        <script type="text/javascript">
+        function copyToClipboard(text) {
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            var button = document.querySelector('.copy-button');
+            button.textContent = '<?php echo esc_js(__('Copied!', 'duitku')); ?>';
+            setTimeout(function() {
+                button.textContent = '<?php echo esc_js(__('Copy', 'duitku')); ?>';
+            }, 2000);
+        }
+        </script>
+        <?php
         
         echo '</div>';
     }
